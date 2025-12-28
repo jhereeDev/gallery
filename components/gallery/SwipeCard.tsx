@@ -9,6 +9,8 @@ import Animated, {
   withTiming,
   runOnJS,
   useDerivedValue,
+  interpolate,
+  Extrapolation,
 } from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -17,10 +19,11 @@ import { SWIPE_THRESHOLD, ROTATION_FACTOR } from '@/constants/config';
 import { EXIT_SPRING_CONFIG, SPRING_CONFIG, TIMING_CONFIG } from '@/utils/animations';
 import { MetadataPanel } from '@/components/gallery/MetadataPanel';
 import type { Photo, PhotoAnalysis } from '@/types/gallery';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH * 0.9;
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.6;
+const CARD_WIDTH = SCREEN_WIDTH * 0.92;
+const CARD_HEIGHT = SCREEN_HEIGHT * 0.65;
 
 interface SwipeCardProps {
   photo: Photo;
@@ -44,31 +47,44 @@ export function SwipeCard({
   const deleteColor = useThemeColor({}, 'deleteColor');
   const keepColor = useThemeColor({}, 'keepColor');
   const cardBg = useThemeColor({}, 'cardBackground');
+  const surfaceColor = useThemeColor({}, 'surface');
 
   const rotate = useSharedValue(0);
   const opacity = useSharedValue(1);
+  const scale = useSharedValue(1);
 
   // Reset local values when photo changes
   useEffect(() => {
     rotate.value = 0;
-    opacity.value = withSpring(1, SPRING_CONFIG);
+    scale.value = withSpring(1, SPRING_CONFIG);
+    opacity.value = withTiming(1, { duration: 400 });
   }, [photo.id]);
 
   // Derived values for overlays
   const deleteOverlayOpacity = useDerivedValue(() => {
-    return translateX.value > 0 ? Math.min(translateX.value / SWIPE_THRESHOLD, 1) : 0;
+    return interpolate(
+      translateX.value,
+      [0, SWIPE_THRESHOLD],
+      [0, 1],
+      Extrapolation.CLAMP
+    );
   });
 
   const keepOverlayOpacity = useDerivedValue(() => {
-    return translateX.value < 0 ? Math.min(Math.abs(translateX.value) / SWIPE_THRESHOLD, 1) : 0;
+    return interpolate(
+      translateX.value,
+      [-SWIPE_THRESHOLD, 0],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
   });
 
   const handleSwipeComplete = (direction: 'left' | 'right') => {
-    triggerHaptic('medium');
+    triggerHaptic('heavy');
 
     // Animate card out
     translateX.value = withSpring(
-      direction === 'left' ? -SCREEN_WIDTH : SCREEN_WIDTH,
+      direction === 'left' ? -SCREEN_WIDTH * 1.5 : SCREEN_WIDTH * 1.5,
       EXIT_SPRING_CONFIG
     );
     opacity.value = withTiming(0, TIMING_CONFIG);
@@ -80,17 +96,23 @@ export function SwipeCard({
       } else {
         onSwipeRight();
       }
-    }, 250);
+    }, 200);
   };
 
   const panGesture = Gesture.Pan()
     .onBegin(() => {
       runOnJS(triggerHaptic)('light');
+      scale.value = withSpring(1.02, SPRING_CONFIG);
     })
     .onUpdate((event) => {
       translateX.value = event.translationX;
       translateY.value = event.translationY;
       rotate.value = event.translationX / ROTATION_FACTOR;
+      
+      // Haptic feedback when crossing threshold
+      if (Math.abs(event.translationX) >= SWIPE_THRESHOLD && Math.abs(event.translationX) < SWIPE_THRESHOLD + 5) {
+        runOnJS(triggerHaptic)('medium');
+      }
     })
     .onEnd(() => {
       const shouldDelete = translateX.value > SWIPE_THRESHOLD;
@@ -103,31 +125,44 @@ export function SwipeCard({
         translateX.value = withSpring(0, SPRING_CONFIG);
         translateY.value = withSpring(0, SPRING_CONFIG);
         rotate.value = withSpring(0, SPRING_CONFIG);
+        scale.value = withSpring(1, SPRING_CONFIG);
       }
     });
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
+    const s = interpolate(
+      Math.abs(translateX.value),
+      [0, SWIPE_THRESHOLD],
+      [scale.value, 0.95],
+      Extrapolation.CLAMP
+    );
+
     return {
       transform: [
         { translateX: translateX.value },
         { translateY: translateY.value },
         { rotateZ: `${rotate.value}deg` },
+        { scale: s },
       ],
       opacity: opacity.value,
+      shadowOpacity: interpolate(
+        Math.abs(translateX.value),
+        [0, SWIPE_THRESHOLD],
+        [0.3, 0.5],
+        Extrapolation.CLAMP
+      ),
     };
   });
 
-  const deleteOverlayStyle = useAnimatedStyle(() => {
-    return {
-      opacity: deleteOverlayOpacity.value,
-    };
-  });
+  const deleteOverlayStyle = useAnimatedStyle(() => ({
+    opacity: deleteOverlayOpacity.value,
+    transform: [{ scale: interpolate(translateX.value, [0, SWIPE_THRESHOLD], [0.5, 1.2], Extrapolation.CLAMP) }]
+  }));
 
-  const keepOverlayStyle = useAnimatedStyle(() => {
-    return {
-      opacity: keepOverlayOpacity.value,
-    };
-  });
+  const keepOverlayStyle = useAnimatedStyle(() => ({
+    opacity: keepOverlayOpacity.value,
+    transform: [{ scale: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [1.2, 0.5], Extrapolation.CLAMP) }]
+  }));
 
   return (
     <GestureDetector gesture={panGesture}>
@@ -136,27 +171,27 @@ export function SwipeCard({
           source={{ uri: photo.uri }}
           style={styles.image}
           contentFit="cover"
-          transition={200}
+          transition={300}
         />
 
-        {/* Delete Overlay (Right swipe) */}
-        <Animated.View style={[styles.overlay, styles.deleteOverlay, deleteOverlayStyle]}>
-          <View style={[styles.textContainer, styles.deleteTextContainer]}>
-            <ThemedText style={[styles.overlayText, styles.deleteText]}>DELETE</ThemedText>
+        {/* Action Indicators (Icons) */}
+        <Animated.View pointerEvents="none" style={[styles.indicatorContainer, styles.deleteIndicator, deleteOverlayStyle]}>
+          <View style={[styles.iconCircle, { borderColor: deleteColor }]}>
+            <Ionicons name="trash" size={60} color={deleteColor} />
           </View>
         </Animated.View>
 
-        {/* Keep Overlay (Left swipe) */}
-        <Animated.View style={[styles.overlay, styles.keepOverlay, keepOverlayStyle]}>
-          <View style={[styles.textContainer, styles.keepTextContainer]}>
-            <ThemedText style={[styles.overlayText, styles.keepText]}>KEEP</ThemedText>
+        <Animated.View pointerEvents="none" style={[styles.indicatorContainer, styles.keepIndicator, keepOverlayStyle]}>
+          <View style={[styles.iconCircle, { borderColor: keepColor }]}>
+            <Ionicons name="heart" size={60} color={keepColor} />
           </View>
         </Animated.View>
 
         {/* Smart Suggestion Badge */}
         {isSuggested && (
           <View style={styles.suggestionBadge}>
-            <ThemedText style={styles.suggestionText}>✨ Suggested</ThemedText>
+            <Ionicons name="sparkles" size={14} color="#000" />
+            <ThemedText style={styles.suggestionText}>SMART SUGGESTION</ThemedText>
           </View>
         )}
 
@@ -171,93 +206,70 @@ const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    borderRadius: 20,
-    overflow: 'hidden', // Keep overflow hidden for image, but overlays handle their own bounds
+    borderRadius: 32,
+    overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 10,
     },
     shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    shadowRadius: 20,
+    elevation: 12,
     zIndex: 10,
   },
   image: {
     width: '100%',
     height: '100%',
-    borderRadius: 20, // Match card border radius
   },
-  overlay: {
+  indicatorContainer: {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    top: '35%',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 20,
+  },
+  deleteIndicator: {
     right: 0,
-    bottom: 0,
-    justifyContent: 'center',
+  },
+  keepIndicator: {
+    left: 0,
+  },
+  iconCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 6,
+    backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
-    // Don't set overflow here - let it respect card's overflow
-  },
-  deleteOverlay: {
-    backgroundColor: 'rgba(255, 59, 48, 0.4)',
-  },
-  keepOverlay: {
-    backgroundColor: 'rgba(52, 199, 89, 0.4)',
-  },
-  textContainer: {
-    borderWidth: 5,
-    borderRadius: 15,
-    paddingHorizontal: 20,
-    paddingVertical: 10, // Increased padding
-    backgroundColor: 'rgba(0,0,0,0.2)', // Slightly darker for better visibility
     justifyContent: 'center',
-    alignItems: 'center',
-  },
-  deleteTextContainer: {
-    borderColor: '#FF3B30',
-    transform: [{ rotate: '15deg' }],
-  },
-  keepTextContainer: {
-    borderColor: '#34C759',
-    transform: [{ rotate: '-15deg' }],
-  },
-  overlayText: {
-    fontSize: 48,
-    fontWeight: '900',
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    // --- ROBUST FIXES FOR CLIPPING ---
-    lineHeight: 58, // Explicitly set > fontSize
-    includeFontPadding: false, // Prevents Android-specific clipping
-    textAlignVertical: 'center', // Ensures vertical centering
-    // ---------------------------------
-  },
-  deleteText: {
-    color: '#FF3B30',
-  },
-  keepText: {
-    color: '#34C759',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 10,
   },
   suggestionBadge: {
     position: 'absolute',
-    top: 16,
-    right: 16,
+    top: 20,
+    left: 20,
     backgroundColor: 'rgba(255, 215, 0, 0.95)',
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
     elevation: 5,
   },
   suggestionText: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '800',
     color: '#000',
+    letterSpacing: 1,
   },
 });

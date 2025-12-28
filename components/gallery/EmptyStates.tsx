@@ -3,7 +3,7 @@ import { View, StyleSheet, ActivityIndicator, Pressable } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 
 interface EmptyStateProps {
   type: 'loading' | 'noPhotos' | 'allProcessed' | 'permissionDenied' | 'noFilterResults';
@@ -12,69 +12,70 @@ interface EmptyStateProps {
 
 export function EmptyState({ type, onRequestPermission }: EmptyStateProps) {
   const tintColor = useThemeColor({}, 'tint');
+  const textColor = useThemeColor({}, 'text');
+  const textSecondary = useThemeColor({}, 'textSecondary');
+  const surfaceColor = useThemeColor({}, 'surface');
 
-  if (type === 'loading') {
-    return (
-      <ThemedView style={styles.container}>
-        <ActivityIndicator size="large" color={tintColor} />
-        <ThemedText style={styles.text}>Loading photos...</ThemedText>
-      </ThemedView>
-    );
-  }
+  const getContent = () => {
+    switch (type) {
+      case 'loading':
+        return {
+          icon: <ActivityIndicator size="large" color={tintColor} />,
+          title: 'Organizing Gallery...',
+          text: 'This might take a moment depending on your gallery size.',
+        };
+      case 'noPhotos':
+        return {
+          icon: <Ionicons name="images-outline" size={80} color={textSecondary} />,
+          title: 'Gallery Empty',
+          text: 'We couldn\'t find any photos in your library. Try taking some beautiful photos first!',
+        };
+      case 'noFilterResults':
+        return {
+          icon: <Ionicons name="filter-outline" size={80} color={textSecondary} />,
+          title: 'No Matches',
+          text: 'None of your photos match this filter. Try another one or view all photos.',
+        };
+      case 'allProcessed':
+        return {
+          icon: <Ionicons name="checkmark-circle-outline" size={80} color={tintColor} />,
+          title: 'All Done!',
+          text: 'You\'ve successfully reviewed all your photos. Your gallery is now clean and organized!',
+        };
+      case 'permissionDenied':
+        return {
+          icon: <Ionicons name="lock-closed-outline" size={80} color={textSecondary} />,
+          title: 'Access Required',
+          text: 'Gallery Cleaner needs your permission to view and organize your photo library.',
+          button: 'Grant Permission',
+        };
+      default:
+        return null;
+    }
+  };
 
-  if (type === 'noPhotos') {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedText style={styles.title}>No Photos Found</ThemedText>
-        <ThemedText style={styles.text}>
-          There are no photos in your gallery.
-        </ThemedText>
-      </ThemedView>
-    );
-  }
+  const content = getContent();
+  if (!content) return null;
 
-  if (type === 'noFilterResults') {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedText style={styles.title}>No Results</ThemedText>
-        <ThemedText style={styles.text}>
-          No photos match the selected filter. Try a different filter or switch to "All Photos".
-        </ThemedText>
-      </ThemedView>
-    );
-  }
-
-  if (type === 'allProcessed') {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedText style={styles.title}>All Done!</ThemedText>
-        <ThemedText style={styles.text}>
-          You've reviewed all photos in your gallery. Great job!
-        </ThemedText>
-      </ThemedView>
-    );
-  }
-
-  if (type === 'permissionDenied') {
-    return (
-      <ThemedView style={styles.container}>
-        <ThemedText style={styles.title}>Permission Required</ThemedText>
-        <ThemedText style={styles.text}>
-          Gallery Cleaner needs access to your photos to help you organize them.
-        </ThemedText>
-        {onRequestPermission && (
+  return (
+    <ThemedView style={styles.container}>
+      <View style={styles.content}>
+        <View style={styles.iconContainer}>
+          {content.icon}
+        </View>
+        <ThemedText style={styles.title}>{content.title}</ThemedText>
+        <ThemedText style={styles.text}>{content.text}</ThemedText>
+        {type === 'permissionDenied' && onRequestPermission && (
           <Pressable
             style={[styles.button, { backgroundColor: tintColor }]}
             onPress={onRequestPermission}
           >
-            <ThemedText style={styles.buttonText}>Grant Access</ThemedText>
+            <ThemedText style={styles.buttonText}>{content.button}</ThemedText>
           </Pressable>
         )}
-      </ThemedView>
-    );
-  }
-
-  return null;
+      </View>
+    </ThemedView>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -84,27 +85,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 32,
   },
+  content: {
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 300,
+  },
+  iconContainer: {
+    marginBottom: 32,
+    height: 100,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 12,
+    fontSize: 28,
+    fontWeight: '900',
+    marginBottom: 16,
     textAlign: 'center',
+    letterSpacing: -1,
   },
   text: {
     fontSize: 16,
     textAlign: 'center',
-    marginBottom: 24,
-    opacity: 0.7,
+    marginBottom: 32,
+    opacity: 0.6,
+    lineHeight: 24,
+    fontWeight: '500',
   },
   button: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 16,
+    paddingHorizontal: 32,
+    paddingVertical: 18,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 15,
+    elevation: 8,
   },
   buttonText: {
     color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });

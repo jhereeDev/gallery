@@ -1,16 +1,17 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
-  withSpring,
-  interpolate,
+  withSpring, 
 } from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { SPRING_CONFIG } from '@/utils/animations';
 import type { GalleryStats } from '@/types/gallery';
+import { Ionicons } from '@expo/vector-icons';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface ProgressHeaderProps {
   stats: GalleryStats;
@@ -19,8 +20,9 @@ interface ProgressHeaderProps {
 export function ProgressHeader({ stats }: ProgressHeaderProps) {
   const deleteColor = useThemeColor({}, 'deleteColor');
   const keepColor = useThemeColor({}, 'keepColor');
-  const headerBg = useThemeColor({}, 'headerBackground');
   const tintColor = useThemeColor({}, 'tint');
+  const surfaceColor = useThemeColor({}, 'surface');
+  const textColor = useThemeColor({}, 'text');
 
   const progress = useSharedValue(0);
 
@@ -37,54 +39,78 @@ export function ProgressHeader({ stats }: ProgressHeaderProps) {
   });
 
   return (
-    <ThemedView style={[styles.container, { backgroundColor: headerBg }]}>
-      <View style={styles.progressRow}>
-        <ThemedText style={styles.progressText}>
-          {stats.processed} / {stats.totalPhotos} photos reviewed
-        </ThemedText>
-        
+    <View style={styles.container}>
+      <View style={[styles.floatingCard, { backgroundColor: surfaceColor, shadowColor: '#000' }]}>
+        <View style={styles.topRow}>
+          <View style={styles.statGroup}>
+            <Ionicons name="heart" size={16} color={keepColor} />
+            <ThemedText style={[styles.statNumber, { color: keepColor }]}>{stats.toKeep}</ThemedText>
+          </View>
+
+          <View style={styles.centerGroup}>
+            <ThemedText style={styles.mainProgressText}>
+              {stats.processed} <ThemedText style={styles.totalText}>/ {stats.totalPhotos}</ThemedText>
+            </ThemedText>
+          </View>
+
+          <View style={styles.statGroup}>
+            <ThemedText style={[styles.statNumber, { color: deleteColor }]}>{stats.toDelete}</ThemedText>
+            <Ionicons name="trash" size={16} color={deleteColor} />
+          </View>
+        </View>
+
         <View style={styles.progressBarContainer}>
           <Animated.View style={[styles.progressBar, { backgroundColor: tintColor }, progressBarStyle]} />
         </View>
       </View>
-
-      <View style={styles.statsRow}>
-        <View style={styles.statItem}>
-          <ThemedText style={[styles.statNumber, { color: deleteColor }]}>
-            {stats.toDelete}
-          </ThemedText>
-          <ThemedText style={styles.statLabel}>To Delete</ThemedText>
-        </View>
-
-        <View style={styles.separator} />
-
-        <View style={styles.statItem}>
-          <ThemedText style={[styles.statNumber, { color: keepColor }]}>
-            {stats.toKeep}
-          </ThemedText>
-          <ThemedText style={styles.statLabel}>To Keep</ThemedText>
-        </View>
-      </View>
-    </ThemedView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    paddingVertical: 16,
     paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    paddingTop: 10,
+    paddingBottom: 20,
+    zIndex: 100,
   },
-  progressRow: {
-    marginBottom: 16,
+  floatingCard: {
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  topRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minWidth: 50,
+  },
+  centerGroup: {
     alignItems: 'center',
   },
-  progressText: {
+  statNumber: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  mainProgressText: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: -0.5,
+  },
+  totalText: {
     fontSize: 14,
+    opacity: 0.4,
     fontWeight: '600',
-    marginBottom: 8,
-    opacity: 0.8,
   },
   progressBarContainer: {
     height: 6,
@@ -96,28 +122,5 @@ const styles = StyleSheet.create({
   progressBar: {
     height: '100%',
     borderRadius: 3,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statItem: {
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  separator: {
-    width: 1,
-    height: 40,
-    backgroundColor: 'rgba(0,0,0,0.1)',
   },
 });

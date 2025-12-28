@@ -1,13 +1,14 @@
 import React from 'react';
-import { StyleSheet, View, Dimensions } from 'react-native';
+import { StyleSheet, Dimensions } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, { useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
 import type { Photo } from '@/types/gallery';
 import { SWIPE_THRESHOLD } from '@/constants/config';
+import { useThemeColor } from '@/hooks/use-theme-color';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const CARD_WIDTH = SCREEN_WIDTH * 0.9;
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.6;
+const CARD_WIDTH = SCREEN_WIDTH * 0.92;
+const CARD_HEIGHT = SCREEN_HEIGHT * 0.65;
 
 interface PhotoStackProps {
   photos: Photo[];
@@ -44,13 +45,15 @@ function StackCard({
   stackIndex: number; 
   translateX: Animated.SharedValue<number> 
 }) {
+  const cardBg = useThemeColor({}, 'cardBackground');
+
   const animatedStyle = useAnimatedStyle(() => {
     // As the top card swiped, background cards move up and scale up
     const swipeProgress = Math.min(Math.abs(translateX.value) / SWIPE_THRESHOLD, 1);
     
-    // Scale: 1 - stackIndex * 0.03 (base) -> improves as swipe progresses
-    const baseScale = 1 - stackIndex * 0.04;
-    const nextScale = 1 - (stackIndex - 1) * 0.04;
+    // Scale: 1 - stackIndex * 0.05 (base) -> improves as swipe progresses
+    const baseScale = 1 - stackIndex * 0.05;
+    const nextScale = 1 - (stackIndex - 1) * 0.05;
     const scale = interpolate(
       swipeProgress,
       [0, 1],
@@ -58,9 +61,9 @@ function StackCard({
       Extrapolation.CLAMP
     );
 
-    // TranslateY: stackIndex * 8 (base) -> decreases as swipe progresses
-    const baseTranslateY = stackIndex * 10;
-    const nextTranslateY = (stackIndex - 1) * 10;
+    // TranslateY: stackIndex * 20 (base) -> decreases as swipe progresses
+    const baseTranslateY = stackIndex * 20;
+    const nextTranslateY = (stackIndex - 1) * 20;
     const translateY = interpolate(
       swipeProgress,
       [0, 1],
@@ -69,8 +72,8 @@ function StackCard({
     );
 
     // Opacity: fades in slightly as it moves forward
-    const baseOpacity = 1 - stackIndex * 0.2;
-    const nextOpacity = 1 - (stackIndex - 1) * 0.2;
+    const baseOpacity = 1 - stackIndex * 0.3;
+    const nextOpacity = 1 - (stackIndex - 1) * 0.3;
     const opacity = interpolate(
       swipeProgress,
       [0, 1],
@@ -86,7 +89,7 @@ function StackCard({
   });
 
   return (
-    <Animated.View style={[styles.stackCard, animatedStyle]}>
+    <Animated.View style={[styles.stackCard, { backgroundColor: cardBg }, animatedStyle]}>
       <Image
         source={{ uri: photo.uri }}
         style={styles.image}
@@ -101,15 +104,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
-    borderRadius: 20,
-    backgroundColor: '#ddd',
+    borderRadius: 32,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 4,
     },
-    shadowOpacity: 0.15,
-    shadowRadius: 3.84,
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
     elevation: 3,
     overflow: 'hidden',
   },

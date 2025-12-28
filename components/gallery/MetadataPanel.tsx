@@ -2,8 +2,9 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { format } from 'date-fns';
 import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import type { Photo, PhotoAnalysis } from '@/types/gallery';
+import { Ionicons } from '@expo/vector-icons';
 
 interface MetadataPanelProps {
   photo: Photo;
@@ -11,6 +12,8 @@ interface MetadataPanelProps {
 }
 
 export function MetadataPanel({ photo, analysis }: MetadataPanelProps) {
+  const accentColor = useThemeColor({}, 'accent');
+  
   const formatFileSize = (bytes?: number): string => {
     if (!bytes) return 'Unknown';
     if (bytes < 1024) return `${bytes} B`;
@@ -20,13 +23,11 @@ export function MetadataPanel({ photo, analysis }: MetadataPanelProps) {
 
   const formatDate = (timestamp: number): string => {
     try {
-      return format(new Date(timestamp), 'MMM d, yyyy • h:mm a');
+      return format(new Date(timestamp), 'MMM d, yyyy');
     } catch {
       return 'Unknown date';
     }
   };
-
-  const resolution = `${photo.width} × ${photo.height}`;
 
   // Determine if we should show badges
   const showBadges =
@@ -34,48 +35,56 @@ export function MetadataPanel({ photo, analysis }: MetadataPanelProps) {
     (analysis.isBlurry || analysis.isScreenshot || analysis.ageInDays > 365);
 
   return (
-    <ThemedView style={styles.container}>
-      {/* Metadata Section */}
-      <View style={styles.metadataRow}>
-        <ThemedText style={styles.metadataText}>
-          {formatDate(photo.creationTime)}
-        </ThemedText>
-      </View>
-
-      <View style={styles.metadataRow}>
-        <ThemedText style={styles.metadataText}>
-          {formatFileSize(photo.fileSize)} • {resolution}
-        </ThemedText>
-      </View>
-
-      {/* Analysis Badges */}
-      {showBadges && (
-        <View style={styles.badgesContainer}>
-          {analysis.isScreenshot && (
-            <View style={[styles.badge, styles.screenshotBadge]}>
-              <ThemedText style={styles.badgeText}>Screenshot</ThemedText>
-            </View>
-          )}
-
-          {analysis.isBlurry && (
-            <View style={[styles.badge, styles.blurryBadge]}>
-              <ThemedText style={styles.badgeText}>
-                Blurry ({analysis.blurScore.toFixed(0)}%)
-              </ThemedText>
-            </View>
-          )}
-
-          {analysis.ageInDays > 365 && (
-            <View style={[styles.badge, styles.oldBadge]}>
-              <ThemedText style={styles.badgeText}>
-                {Math.floor(analysis.ageInDays / 365)}+ year
-                {Math.floor(analysis.ageInDays / 365) > 1 ? 's' : ''} old
-              </ThemedText>
-            </View>
-          )}
+    <View style={styles.container}>
+      {/* Top Gradient/Overlay effect would be nice, but using solid semi-transparent for now */}
+      <View style={styles.content}>
+        <View style={styles.mainInfo}>
+          <View style={styles.row}>
+            <Ionicons name="calendar-outline" size={14} color="#fff" style={styles.icon} />
+            <ThemedText style={styles.dateText}>
+              {formatDate(photo.creationTime)}
+            </ThemedText>
+          </View>
+          
+          <View style={styles.row}>
+            <Ionicons name="image-outline" size={14} color="#fff" style={styles.icon} />
+            <ThemedText style={styles.detailsText}>
+              {formatFileSize(photo.fileSize)} • {photo.width}×{photo.height}
+            </ThemedText>
+          </View>
         </View>
-      )}
-    </ThemedView>
+
+        {/* Analysis Badges */}
+        {showBadges && (
+          <View style={styles.badgesContainer}>
+            {analysis.isScreenshot && (
+              <View style={[styles.badge, { backgroundColor: 'rgba(245, 158, 11, 0.9)' }]}>
+                <Ionicons name="phone-portrait" size={12} color="#fff" />
+                <ThemedText style={styles.badgeText}>SCREENSHOT</ThemedText>
+              </View>
+            )}
+
+            {analysis.isBlurry && (
+              <View style={[styles.badge, { backgroundColor: 'rgba(239, 68, 68, 0.9)' }]}>
+                <Ionicons name="alert-circle" size={12} color="#fff" />
+                <ThemedText style={styles.badgeText}>
+                  BLURRY
+                </ThemedText>
+              </View>
+            )}
+
+            {analysis.ageInDays > 365 && (
+              <View style={[styles.badge, { backgroundColor: 'rgba(59, 130, 246, 0.9)' }]}>
+                <Ionicons name="time" size={12} color="#fff" />
+                <ThemedText style={styles.badgeText}>
+                  {Math.floor(analysis.ageInDays / 365)}Y+ OLD
+                </ThemedText>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    </View>
   );
 }
 
@@ -85,43 +94,55 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    paddingTop: 40, // Fade space
   },
-  metadataRow: {
-    marginBottom: 4,
+  content: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    paddingTop: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
-  metadataText: {
-    fontSize: 14,
+  mainInfo: {
+    gap: 4,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  icon: {
+    opacity: 0.8,
+  },
+  dateText: {
+    fontSize: 18,
+    fontWeight: '900',
     color: '#fff',
-    opacity: 0.9,
+    letterSpacing: -0.5,
+  },
+  detailsText: {
+    fontSize: 13,
+    color: '#fff',
+    opacity: 0.7,
+    fontWeight: '600',
   },
   badgesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 12,
+    marginTop: 16,
   },
   badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
-  },
-  screenshotBadge: {
-    backgroundColor: 'rgba(255, 159, 10, 0.9)',
-  },
-  blurryBadge: {
-    backgroundColor: 'rgba(255, 69, 58, 0.9)',
-  },
-  oldBadge: {
-    backgroundColor: 'rgba(100, 210, 255, 0.9)',
+    gap: 4,
   },
   badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '900',
     color: '#fff',
+    letterSpacing: 0.5,
   },
 });

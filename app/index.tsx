@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { ThemedView } from '@/components/themed-view';
 import { useGallery } from '@/hooks/useGallery';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useThemeColor } from '@/hooks/use-theme-color';
 import { SwipeCard } from '@/components/gallery/SwipeCard';
 import { ProgressHeader } from '@/components/gallery/ProgressHeader';
 import { ActionButtons } from '@/components/gallery/ActionButtons';
-import { UndoButton } from '@/components/gallery/UndoButton';
 import { PhotoStack } from '@/components/gallery/PhotoStack';
 import { AchievementToast } from '@/components/gallery/AchievementToast';
 import { FilterBar } from '@/components/gallery/FilterBar';
@@ -17,7 +18,7 @@ import { storage } from '@/utils/storage';
 import { applyFilter, getFilterCounts, type FilterType } from '@/utils/filters';
 import type { Achievement } from '@/types/gallery';
 
-import Animated, { useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import Animated, { useSharedValue } from 'react-native-reanimated';
 import { SPRING_CONFIG } from '@/utils/animations';
 
 export default function SwiperScreen() {
@@ -26,6 +27,7 @@ export default function SwiperScreen() {
   const [currentAchievement, setCurrentAchievement] = useState<Achievement | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [filteredIndex, setFilteredIndex] = useState(0);
+  const background = useThemeColor({}, 'background');
 
   // Shared values for reactive UI
   const translateX = useSharedValue(0);
@@ -230,6 +232,19 @@ export default function SwiperScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ThemedView style={styles.content}>
+        {/* Background Blurred Image for Depth */}
+        {currentPhoto && (
+          <View style={StyleSheet.absoluteFill} pointerEvents="none">
+            <Image
+              source={{ uri: currentPhoto.uri }}
+              style={styles.backgroundImage}
+              contentFit="cover"
+              blurRadius={50}
+            />
+            <View style={[styles.backgroundOverlay, { backgroundColor: background }]} />
+          </View>
+        )}
+
         {/* Achievement Toast */}
         {currentAchievement && (
           <AchievementToast
@@ -273,18 +288,13 @@ export default function SwiperScreen() {
           )}
         </View>
 
-        {/* Action Buttons */}
+        {/* Action Buttons with integrated Undo */}
         <ActionButtons
           onKeep={handleSwipeLeft}
           onDelete={handleSwipeRight}
+          onUndo={undoLastDecision}
+          canUndo={state.undoHistory.length > 0}
           disabled={!currentPhoto}
-        />
-
-        {/* Undo Button */}
-        <UndoButton
-          onPress={undoLastDecision}
-          disabled={state.undoHistory.length === 0}
-          count={state.undoHistory.length}
         />
       </ThemedView>
     </SafeAreaView>
@@ -298,11 +308,19 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  backgroundImage: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.2,
+  },
+  backgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.6,
+  },
   cardContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 10,
     position: 'relative',
   },
 });

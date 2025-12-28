@@ -5,7 +5,6 @@ import Animated, {
   useSharedValue, 
   withSpring,
   withSequence,
-  interpolate,
 } from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
@@ -20,40 +19,38 @@ interface FilterBarProps {
 }
 
 export function FilterBar({ activeFilter, onFilterChange, counts }: FilterBarProps) {
-  const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={[styles.container, { backgroundColor }]}
-      contentContainerStyle={styles.contentContainer}
-    >
-      {FILTER_PRESETS.map(filter => {
-        const count = counts[filter.type];
-        const isActive = activeFilter === filter.type;
+    <View style={[styles.outerContainer, { backgroundColor }]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.contentContainer}
+      >
+        {FILTER_PRESETS.map(filter => {
+          const count = counts[filter.type];
+          const isActive = activeFilter === filter.type;
 
-        // Don't show filters with 0 count (except 'all')
-        if (count === 0 && filter.type !== 'all') {
-          return null;
-        }
+          if (count === 0 && filter.type !== 'all') {
+            return null;
+          }
 
-        return (
-          <FilterChip
-            key={filter.type}
-            filter={filter}
-            count={count}
-            isActive={isActive}
-            onPress={() => {
-              triggerHaptic('light');
-              onFilterChange(filter.type);
-            }}
-            activeColor={tintColor}
-          />
-        );
-      })}
-    </ScrollView>
+          return (
+            <FilterChip
+              key={filter.type}
+              filter={filter}
+              count={count}
+              isActive={isActive}
+              onPress={() => {
+                triggerHaptic('light');
+                onFilterChange(filter.type);
+              }}
+            />
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -62,14 +59,16 @@ function FilterChip({
   count, 
   isActive, 
   onPress,
-  activeColor
 }: { 
   filter: any; 
   count: number; 
   isActive: boolean; 
   onPress: () => void;
-  activeColor: string;
 }) {
+  const tintColor = useThemeColor({}, 'tint');
+  const surfaceColor = useThemeColor({}, 'surface');
+  const textSecondary = useThemeColor({}, 'textSecondary');
+  const textColor = useThemeColor({}, 'text');
   const scale = useSharedValue(1);
 
   useEffect(() => {
@@ -85,35 +84,27 @@ function FilterChip({
     transform: [{ scale: scale.value }],
   }));
 
-  const handlePressIn = () => {
-    scale.value = withSpring(0.95, SPRING_CONFIG);
-  };
-
-  const handlePressOut = () => {
-    scale.value = withSpring(1, SPRING_CONFIG);
-  };
-
   return (
     <Animated.View style={animatedStyle}>
       <Pressable
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
         onPress={onPress}
         style={[
           styles.filterChip,
-          isActive && { backgroundColor: activeColor },
-          !isActive && styles.filterChipInactive,
+          { backgroundColor: isActive ? tintColor : surfaceColor },
+          isActive && styles.activeShadow,
         ]}
       >
-        <ThemedText style={styles.icon}>{filter.icon}</ThemedText>
+        <ThemedText style={[styles.icon, { color: isActive ? '#fff' : textColor }]}>
+          {filter.icon}
+        </ThemedText>
         <ThemedText
-          style={[styles.label, isActive && styles.labelActive]}
+          style={[styles.label, { color: isActive ? '#fff' : textColor }]}
         >
           {filter.label}
         </ThemedText>
         {count > 0 && (
-          <View style={[styles.countContainer, isActive && styles.countActiveContainer]}>
-            <ThemedText style={[styles.count, isActive && styles.countActive]}>
+          <View style={[styles.countContainer, { backgroundColor: isActive ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.05)' }]}>
+            <ThemedText style={[styles.count, { color: isActive ? '#fff' : textSecondary }]}>
               {count}
             </ThemedText>
           </View>
@@ -124,60 +115,45 @@ function FilterChip({
 }
 
 const styles = StyleSheet.create({
-  container: {
-    maxHeight: 64,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+  outerContainer: {
+    paddingVertical: 10,
   },
   contentContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 10,
+    paddingHorizontal: 20,
+    gap: 12,
   },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
     gap: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  filterChipInactive: {
-    backgroundColor: 'rgba(0,0,0,0.04)',
+  activeShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   icon: {
     fontSize: 16,
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
-  },
-  labelActive: {
-    color: '#fff',
+    fontWeight: '700',
   },
   countContainer: {
-    backgroundColor: 'rgba(0,0,0,0.08)',
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 10,
-    minWidth: 22,
+    borderRadius: 12,
+    minWidth: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  countActiveContainer: {
-    backgroundColor: 'rgba(255,255,255,0.25)',
   },
   count: {
     fontSize: 11,
     fontWeight: '800',
-    textAlign: 'center',
-  },
-  countActive: {
-    color: '#fff',
   },
 });
