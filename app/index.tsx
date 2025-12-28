@@ -17,11 +17,19 @@ import { storage } from '@/utils/storage';
 import { applyFilter, getFilterCounts, type FilterType } from '@/utils/filters';
 import type { Achievement } from '@/types/gallery';
 
+import Animated, { useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import { SPRING_CONFIG } from '@/utils/animations';
+
 export default function SwiperScreen() {
   const { state, dispatch, loadPhotos, loadMorePhotos, markPhoto, undoLastDecision, startSession, endSession, checkAndUpdateAchievements, analyzePhotos } = useGallery();
   const { status: permissionStatus, requestPermissions } = usePermissions();
   const [currentAchievement, setCurrentAchievement] = useState<Achievement | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [filteredIndex, setFilteredIndex] = useState(0);
+
+  // Shared values for reactive UI
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
 
   // Load photos on mount when permission is granted
   useEffect(() => {
@@ -44,30 +52,40 @@ export default function SwiperScreen() {
     }
   }, [state.photos.length]);
 
-  // Save current photo ID to storage whenever index changes
+  // Save current photo ID to storage whenever filtered index changes
   useEffect(() => {
-    const currentPhoto = state.photos[state.currentIndex];
-    if (currentPhoto) {
+    if (filteredPhotos && filteredPhotos[filteredIndex]) {
+      const currentPhoto = filteredPhotos[filteredIndex];
       storage.saveLastPhotoId(currentPhoto.id);
     }
-  }, [state.currentIndex, state.photos]);
+  }, [filteredIndex, filteredPhotos]);
 
-  // Resume from last photo when photos are first loaded
+  // Resume from last photo when photos are first loaded (only for 'all' filter)
   useEffect(() => {
-    if (state.photos.length > 0 && state.lastResumePhotoId && state.currentIndex === 0 && state.decisions.size === 0) {
-      const resumeIndex = state.photos.findIndex(p => p.id === state.lastResumePhotoId);
+    if (
+      activeFilter === 'all' &&
+      filteredPhotos &&
+      filteredPhotos.length > 0 &&
+      state.lastResumePhotoId &&
+      filteredIndex === 0 &&
+      state.decisions.size === 0
+    ) {
+      const resumeIndex = filteredPhotos.findIndex(p => p.id === state.lastResumePhotoId);
       if (resumeIndex >= 0) {
         // Resume from the next photo after the saved one
-        const targetIndex = Math.min(resumeIndex + 1, state.photos.length - 1);
-        dispatch({ type: 'SET_CURRENT_INDEX', index: targetIndex });
+        const targetIndex = Math.min(resumeIndex + 1, filteredPhotos.length - 1);
+        setFilteredIndex(targetIndex);
         console.log(`Auto-resumed to photo index ${targetIndex}`);
       }
     }
-  }, [state.photos.length, state.lastResumePhotoId]);
+  }, [filteredPhotos, state.lastResumePhotoId, activeFilter, filteredIndex]);
 
-  // Preload more photos when approaching the end
+  // Preload more photos when approaching the end (only for 'all' filter)
   useEffect(() => {
+    if (activeFilter !== 'all') return;
+
     const shouldLoadMore =
+      state.photos.length > 0 &&
       state.currentIndex >= state.photos.length - PRELOAD_THRESHOLD &&
       state.hasMorePhotos &&
       !state.isLoading;
@@ -75,7 +93,7 @@ export default function SwiperScreen() {
     if (shouldLoadMore) {
       loadMorePhotos();
     }
-  }, [state.currentIndex, state.photos.length]);
+  }, [filteredIndex, state.photos.length, activeFilter]);
 
   // Calculate smart suggestions (photos recommended for deletion)
   const smartSuggestions = useMemo(() => {
@@ -99,22 +117,63 @@ export default function SwiperScreen() {
 
   // Apply active filter
   const filteredPhotos = useMemo(() => {
+    if (!state.photos || state.photos.length === 0) {
+      return [];
+    }
     return applyFilter(state.photos, activeFilter, state.analyses, smartSuggestions);
   }, [state.photos, activeFilter, state.analyses, smartSuggestions]);
 
+  // Reset filtered index when filter changes
+  useEffect(() => {
+    setFilteredIndex(0);
+  }, [activeFilter]);
+
+  // Reset filtered index when filtered photos change significantly
+  useEffect(() => {
+    if (!filteredPhotos || filteredPhotos.length === 0) {
+      setFilteredIndex(0);
+      return;
+    }
+    // Clamp index to valid range (only check, don't set if already valid to avoid loops)
+    setFilteredIndex(prevIndex => {
+      if (prevIndex >= filteredPhotos.length) {
+        return Math.max(0, filteredPhotos.length - 1);
+      }
+      return prevIndex;
+    });
+  }, [filteredPhotos]);
+
+  // Reset shared values when photo changes
+  useEffect(() => {
+    if (filteredPhotos && filteredPhotos[filteredIndex]) {
+      translateX.value = 0;
+      translateY.value = 0;
+    }
+  }, [filteredPhotos, filteredIndex]);
+
   const handleSwipeLeft = () => {
-    const currentPhoto = state.photos[state.currentIndex];
+    if (!filteredPhotos || filteredPhotos.length === 0) return;
+    const currentPhoto = filteredPhotos[filteredIndex];
     if (currentPhoto) {
       markPhoto(currentPhoto.id, 'keep');
       checkAchievements();
+      // Move to next photo in filtered array
+      if (filteredIndex < filteredPhotos.length - 1) {
+        setFilteredIndex(filteredIndex + 1);
+      }
     }
   };
 
   const handleSwipeRight = () => {
-    const currentPhoto = state.photos[state.currentIndex];
+    if (!filteredPhotos || filteredPhotos.length === 0) return;
+    const currentPhoto = filteredPhotos[filteredIndex];
     if (currentPhoto) {
       markPhoto(currentPhoto.id, 'delete');
       checkAchievements();
+      // Move to next photo in filtered array
+      if (filteredIndex < filteredPhotos.length - 1) {
+        setFilteredIndex(filteredIndex + 1);
+      }
     }
   };
 
@@ -153,12 +212,20 @@ export default function SwiperScreen() {
     return <EmptyState type="noPhotos" />;
   }
 
-  // All photos processed
-  if (state.currentIndex >= state.photos.length) {
+  // No photos match the filter
+  if (!filteredPhotos || (filteredPhotos.length === 0 && !state.isLoading && state.photos.length > 0)) {
+    return <EmptyState type="noFilterResults" />;
+  }
+
+  if (filteredIndex >= filteredPhotos.length) {
     return <EmptyState type="allProcessed" />;
   }
 
-  const currentPhoto = state.photos[state.currentIndex];
+  const currentPhoto = filteredPhotos[filteredIndex];
+
+  if (!currentPhoto) {
+    return <EmptyState type="loading" />;
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -184,7 +251,13 @@ export default function SwiperScreen() {
         {/* Swipe Card */}
         <View style={styles.cardContainer}>
           {/* Photo Stack (cards behind current) */}
-          <PhotoStack photos={state.photos} currentIndex={state.currentIndex} />
+          {filteredPhotos && (
+            <PhotoStack 
+              photos={filteredPhotos} 
+              currentIndex={filteredIndex} 
+              translateX={translateX}
+            />
+          )}
 
           {/* Current Card */}
           {currentPhoto && (
@@ -193,6 +266,9 @@ export default function SwiperScreen() {
               onSwipeLeft={handleSwipeLeft}
               onSwipeRight={handleSwipeRight}
               isSuggested={smartSuggestions.includes(currentPhoto.id)}
+              translateX={translateX}
+              translateY={translateY}
+              analysis={state.analyses.get(currentPhoto.id)}
             />
           )}
         </View>

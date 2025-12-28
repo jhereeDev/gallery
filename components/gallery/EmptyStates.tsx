@@ -6,7 +6,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { router } from 'expo-router';
 
 interface EmptyStateProps {
-  type: 'loading' | 'noPhotos' | 'allProcessed' | 'permissionDenied';
+  type: 'loading' | 'noPhotos' | 'allProcessed' | 'permissionDenied' | 'noFilterResults';
   onRequestPermission?: () => void;
 }
 
@@ -28,6 +28,17 @@ export function EmptyState({ type, onRequestPermission }: EmptyStateProps) {
         <ThemedText style={styles.title}>No Photos Found</ThemedText>
         <ThemedText style={styles.text}>
           There are no photos in your gallery.
+        </ThemedText>
+      </ThemedView>
+    );
+  }
+
+  if (type === 'noFilterResults') {
+    return (
+      <ThemedView style={styles.container}>
+        <ThemedText style={styles.title}>No Results</ThemedText>
+        <ThemedText style={styles.text}>
+          No photos match the selected filter. Try a different filter or switch to "All Photos".
         </ThemedText>
       </ThemedView>
     );

@@ -1,6 +1,6 @@
 import React, { createContext, useReducer, ReactNode, useEffect } from 'react';
 import * as MediaLibrary from 'expo-media-library';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { GalleryState, GalleryAction, Photo, PhotoDecision } from '@/types/gallery';
 import { PHOTO_BATCH_SIZE } from '@/constants/config';
 import { storage } from '@/utils/storage';

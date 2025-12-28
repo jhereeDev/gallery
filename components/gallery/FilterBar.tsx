@@ -1,8 +1,17 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Pressable } from 'react-native';
+import React, { useEffect } from 'react';
+import { ScrollView, StyleSheet, Pressable, View } from 'react-native';
+import Animated, { 
+  useAnimatedStyle, 
+  useSharedValue, 
+  withSpring,
+  withSequence,
+  interpolate,
+} from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { FILTER_PRESETS, type FilterType } from '@/utils/filters';
+import { triggerHaptic } from '@/utils/haptics';
+import { SPRING_CONFIG } from '@/utils/animations';
 
 interface FilterBarProps {
   activeFilter: FilterType;
@@ -31,79 +40,144 @@ export function FilterBar({ activeFilter, onFilterChange, counts }: FilterBarPro
         }
 
         return (
-          <Pressable
+          <FilterChip
             key={filter.type}
-            style={[
-              styles.filterChip,
-              isActive && { backgroundColor: tintColor },
-              !isActive && styles.filterChipInactive,
-            ]}
-            onPress={() => onFilterChange(filter.type)}
-          >
-            <ThemedText style={styles.icon}>{filter.icon}</ThemedText>
-            <ThemedText
-              style={[styles.label, isActive && styles.labelActive]}
-            >
-              {filter.label}
-            </ThemedText>
-            {count > 0 && (
-              <ThemedText
-                style={[styles.count, isActive && styles.countActive]}
-              >
-                {count}
-              </ThemedText>
-            )}
-          </Pressable>
+            filter={filter}
+            count={count}
+            isActive={isActive}
+            onPress={() => {
+              triggerHaptic('light');
+              onFilterChange(filter.type);
+            }}
+            activeColor={tintColor}
+          />
         );
       })}
     </ScrollView>
   );
 }
 
+function FilterChip({ 
+  filter, 
+  count, 
+  isActive, 
+  onPress,
+  activeColor
+}: { 
+  filter: any; 
+  count: number; 
+  isActive: boolean; 
+  onPress: () => void;
+  activeColor: string;
+}) {
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    if (isActive) {
+      scale.value = withSequence(
+        withSpring(1.1, SPRING_CONFIG),
+        withSpring(1, SPRING_CONFIG)
+      );
+    }
+  }, [isActive]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withSpring(0.95, SPRING_CONFIG);
+  };
+
+  const handlePressOut = () => {
+    scale.value = withSpring(1, SPRING_CONFIG);
+  };
+
+  return (
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={onPress}
+        style={[
+          styles.filterChip,
+          isActive && { backgroundColor: activeColor },
+          !isActive && styles.filterChipInactive,
+        ]}
+      >
+        <ThemedText style={styles.icon}>{filter.icon}</ThemedText>
+        <ThemedText
+          style={[styles.label, isActive && styles.labelActive]}
+        >
+          {filter.label}
+        </ThemedText>
+        {count > 0 && (
+          <View style={[styles.countContainer, isActive && styles.countActiveContainer]}>
+            <ThemedText style={[styles.count, isActive && styles.countActive]}>
+              {count}
+            </ThemedText>
+          </View>
+        )}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
-    maxHeight: 60,
+    maxHeight: 64,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
+    borderBottomColor: 'rgba(0,0,0,0.05)',
   },
   contentContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    gap: 8,
+    gap: 10,
   },
   filterChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    gap: 6,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   filterChipInactive: {
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    backgroundColor: 'rgba(0,0,0,0.04)',
   },
   icon: {
     fontSize: 16,
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   labelActive: {
     color: '#fff',
   },
-  count: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    backgroundColor: 'rgba(0,0,0,0.2)',
+  countContainer: {
+    backgroundColor: 'rgba(0,0,0,0.08)',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 10,
-    minWidth: 20,
+    minWidth: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  countActiveContainer: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+  },
+  count: {
+    fontSize: 11,
+    fontWeight: '800',
     textAlign: 'center',
   },
   countActive: {
-    backgroundColor: 'rgba(255,255,255,0.3)',
     color: '#fff',
   },
 });

@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import type { Photo, PhotoAnalysis } from '@/types/gallery';
 
 // Screenshot detection based on filename and aspect ratio

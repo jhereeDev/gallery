@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withSpring,
+  interpolate,
+} from 'react-native-reanimated';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { useThemeColor } from '@/hooks/use-theme-color';
+import { SPRING_CONFIG } from '@/utils/animations';
 import type { GalleryStats } from '@/types/gallery';
 
 interface ProgressHeaderProps {
@@ -13,13 +20,32 @@ export function ProgressHeader({ stats }: ProgressHeaderProps) {
   const deleteColor = useThemeColor({}, 'deleteColor');
   const keepColor = useThemeColor({}, 'keepColor');
   const headerBg = useThemeColor({}, 'headerBackground');
+  const tintColor = useThemeColor({}, 'tint');
+
+  const progress = useSharedValue(0);
+
+  useEffect(() => {
+    if (stats.totalPhotos > 0) {
+      progress.value = withSpring(stats.processed / stats.totalPhotos, SPRING_CONFIG);
+    }
+  }, [stats.processed, stats.totalPhotos]);
+
+  const progressBarStyle = useAnimatedStyle(() => {
+    return {
+      width: `${progress.value * 100}%`,
+    };
+  });
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: headerBg }]}>
       <View style={styles.progressRow}>
         <ThemedText style={styles.progressText}>
-          Progress: {stats.processed}/{stats.totalPhotos} photos
+          {stats.processed} / {stats.totalPhotos} photos reviewed
         </ThemedText>
+        
+        <View style={styles.progressBarContainer}>
+          <Animated.View style={[styles.progressBar, { backgroundColor: tintColor }, progressBarStyle]} />
+        </View>
       </View>
 
       <View style={styles.statsRow}>
@@ -51,12 +77,25 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(0,0,0,0.1)',
   },
   progressRow: {
-    marginBottom: 12,
+    marginBottom: 16,
+    alignItems: 'center',
   },
   progressText: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
-    textAlign: 'center',
+    marginBottom: 8,
+    opacity: 0.8,
+  },
+  progressBarContainer: {
+    height: 6,
+    width: '100%',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 3,
   },
   statsRow: {
     flexDirection: 'row',
@@ -79,6 +118,6 @@ const styles = StyleSheet.create({
   separator: {
     width: 1,
     height: 40,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    backgroundColor: 'rgba(0,0,0,0.1)',
   },
 });

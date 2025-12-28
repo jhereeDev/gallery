@@ -15,7 +15,8 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { triggerHaptic } from '@/utils/haptics';
 import { SWIPE_THRESHOLD, ROTATION_FACTOR } from '@/constants/config';
 import { EXIT_SPRING_CONFIG, SPRING_CONFIG, TIMING_CONFIG } from '@/utils/animations';
-import type { Photo } from '@/types/gallery';
+import { MetadataPanel } from '@/components/gallery/MetadataPanel';
+import type { Photo, PhotoAnalysis } from '@/types/gallery';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.9;
@@ -26,22 +27,29 @@ interface SwipeCardProps {
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
   isSuggested?: boolean;
+  translateX: Animated.SharedValue<number>;
+  translateY: Animated.SharedValue<number>;
+  analysis?: PhotoAnalysis;
 }
 
-export function SwipeCard({ photo, onSwipeLeft, onSwipeRight, isSuggested = false }: SwipeCardProps) {
+export function SwipeCard({ 
+  photo, 
+  onSwipeLeft, 
+  onSwipeRight, 
+  isSuggested = false,
+  translateX,
+  translateY,
+  analysis
+}: SwipeCardProps) {
   const deleteColor = useThemeColor({}, 'deleteColor');
   const keepColor = useThemeColor({}, 'keepColor');
   const cardBg = useThemeColor({}, 'cardBackground');
 
-  const translateX = useSharedValue(0);
-  const translateY = useSharedValue(0);
   const rotate = useSharedValue(0);
   const opacity = useSharedValue(1);
 
-  // Reset values when photo changes
+  // Reset local values when photo changes
   useEffect(() => {
-    translateX.value = 0;
-    translateY.value = 0;
     rotate.value = 0;
     opacity.value = withSpring(1, SPRING_CONFIG);
   }, [photo.id]);
@@ -133,12 +141,16 @@ export function SwipeCard({ photo, onSwipeLeft, onSwipeRight, isSuggested = fals
 
         {/* Delete Overlay (Right swipe) */}
         <Animated.View style={[styles.overlay, styles.deleteOverlay, deleteOverlayStyle]}>
-          <ThemedText style={[styles.overlayText, styles.deleteText]}>DELETE</ThemedText>
+          <View style={[styles.textContainer, styles.deleteTextContainer]}>
+            <ThemedText style={[styles.overlayText, styles.deleteText]}>DELETE</ThemedText>
+          </View>
         </Animated.View>
 
         {/* Keep Overlay (Left swipe) */}
         <Animated.View style={[styles.overlay, styles.keepOverlay, keepOverlayStyle]}>
-          <ThemedText style={[styles.overlayText, styles.keepText]}>KEEP</ThemedText>
+          <View style={[styles.textContainer, styles.keepTextContainer]}>
+            <ThemedText style={[styles.overlayText, styles.keepText]}>KEEP</ThemedText>
+          </View>
         </Animated.View>
 
         {/* Smart Suggestion Badge */}
@@ -148,12 +160,8 @@ export function SwipeCard({ photo, onSwipeLeft, onSwipeRight, isSuggested = fals
           </View>
         )}
 
-        {/* Photo info */}
-        <View style={styles.infoContainer}>
-          <ThemedText style={styles.filename} numberOfLines={1}>
-            {photo.filename}
-          </ThemedText>
-        </View>
+        {/* Photo Metadata */}
+        <MetadataPanel photo={photo} analysis={analysis} />
       </Animated.View>
     </GestureDetector>
   );
@@ -164,7 +172,7 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: 20,
-    overflow: 'hidden',
+    overflow: 'hidden', // Keep overflow hidden for image, but overlays handle their own bounds
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -178,6 +186,7 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+    borderRadius: 20, // Match card border radius
   },
   overlay: {
     position: 'absolute',
@@ -187,6 +196,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
+    // Don't set overflow here - let it respect card's overflow
   },
   deleteOverlay: {
     backgroundColor: 'rgba(255, 59, 48, 0.4)',
@@ -194,34 +204,39 @@ const styles = StyleSheet.create({
   keepOverlay: {
     backgroundColor: 'rgba(52, 199, 89, 0.4)',
   },
+  textContainer: {
+    borderWidth: 5,
+    borderRadius: 15,
+    paddingHorizontal: 20,
+    paddingVertical: 10, // Increased padding
+    backgroundColor: 'rgba(0,0,0,0.2)', // Slightly darker for better visibility
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteTextContainer: {
+    borderColor: '#FF3B30',
+    transform: [{ rotate: '15deg' }],
+  },
+  keepTextContainer: {
+    borderColor: '#34C759',
+    transform: [{ rotate: '-15deg' }],
+  },
   overlayText: {
-    fontSize: 72,
+    fontSize: 48,
     fontWeight: '900',
-    letterSpacing: 8,
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 0, height: 4 },
-    textShadowRadius: 10,
+    textTransform: 'uppercase',
+    // --- ROBUST FIXES FOR CLIPPING ---
+    lineHeight: 58, // Explicitly set > fontSize
+    includeFontPadding: false, // Prevents Android-specific clipping
+    textAlignVertical: 'center', // Ensures vertical centering
+    // ---------------------------------
   },
   deleteText: {
     color: '#FF3B30',
-    transform: [{ rotate: '-15deg' }],
   },
   keepText: {
     color: '#34C759',
-    transform: [{ rotate: '15deg' }],
-  },
-  infoContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 16,
-  },
-  filename: {
-    color: '#fff',
-    fontSize: 14,
   },
   suggestionBadge: {
     position: 'absolute',
