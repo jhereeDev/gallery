@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, RefreshControl, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { ThemedView } from '@/components/themed-view';
@@ -13,6 +13,10 @@ import { PhotoStack } from '@/components/gallery/PhotoStack';
 import { AchievementToast } from '@/components/gallery/AchievementToast';
 import { FilterBar } from '@/components/gallery/FilterBar';
 import { EmptyState } from '@/components/gallery/EmptyStates';
+import { PhotoDetailsModal } from '@/components/gallery/PhotoDetailsModal';
+import { QuickActionsMenu } from '@/components/gallery/QuickActionsMenu';
+import { LoadingSkeleton } from '@/components/gallery/LoadingSkeleton';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PRELOAD_THRESHOLD } from '@/constants/config';
 import { storage } from '@/utils/storage';
 import { applyFilter, getFilterCounts, type FilterType } from '@/utils/filters';
@@ -27,6 +31,10 @@ export default function SwiperScreen() {
   const [currentAchievement, setCurrentAchievement] = useState<Achievement | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [filteredIndex, setFilteredIndex] = useState(0);
+  const [photoDetailsVisible, setPhotoDetailsVisible] = useState(false);
+  const [quickActionsVisible, setQuickActionsVisible] = useState(false);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [refreshing, setRefreshing] = useState(false);
   const background = useThemeColor({}, 'background');
 
   // Shared values for reactive UI
@@ -179,6 +187,27 @@ export default function SwiperScreen() {
     }
   };
 
+  const handleUndo = () => {
+    if (state.undoHistory.length === 0) return;
+    
+    const lastDecision = state.undoHistory[state.undoHistory.length - 1];
+    const undonePhotoId = lastDecision.photoId;
+    
+    // Find the index of the undone photo in the filtered array
+    const photoIndex = filteredPhotos.findIndex(p => p.id === undonePhotoId);
+    
+    if (photoIndex >= 0) {
+      // Navigate back to the undone photo
+      setFilteredIndex(photoIndex);
+    } else if (filteredPhotos.length > 0) {
+      // If photo not found in filtered array (maybe filtered out), go to previous index
+      setFilteredIndex(Math.max(0, filteredIndex - 1));
+    }
+    
+    // Call the actual undo function
+    undoLastDecision();
+  };
+
   const checkAchievements = () => {
     const newlyUnlocked = checkAndUpdateAchievements();
     if (newlyUnlocked.length > 0) {
@@ -197,6 +226,41 @@ export default function SwiperScreen() {
     }
   };
 
+  const handleFavorite = () => {
+    if (!currentPhoto) return;
+    const newFavorites = new Set(favorites);
+    if (newFavorites.has(currentPhoto.id)) {
+      newFavorites.delete(currentPhoto.id);
+    } else {
+      newFavorites.add(currentPhoto.id);
+    }
+    setFavorites(newFavorites);
+    storage.saveFavorites(Array.from(newFavorites));
+  };
+
+  const handleLongPress = () => {
+    setQuickActionsVisible(true);
+  };
+
+  const handleTap = () => {
+    setPhotoDetailsVisible(true);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadPhotos();
+    setRefreshing(false);
+  };
+
+  // Load favorites from storage
+  useEffect(() => {
+    storage.getFavorites().then(savedFavorites => {
+      if (savedFavorites) {
+        setFavorites(new Set(savedFavorites));
+      }
+    });
+  }, []);
+
   // Permission not granted
   if (permissionStatus === 'denied' || permissionStatus === 'undetermined') {
     return (
@@ -206,7 +270,15 @@ export default function SwiperScreen() {
 
   // Loading initial photos
   if (state.isLoading && state.photos.length === 0) {
-    return <EmptyState type="loading" />;
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ThemedView style={styles.content}>
+          <View style={styles.cardContainer}>
+            <LoadingSkeleton />
+          </View>
+        </ThemedView>
+      </SafeAreaView>
+    );
   }
 
   // No photos found
@@ -226,83 +298,155 @@ export default function SwiperScreen() {
   const currentPhoto = filteredPhotos[filteredIndex];
 
   if (!currentPhoto) {
-    return <EmptyState type="loading" />;
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ThemedView style={styles.content}>
+          <View style={styles.cardContainer}>
+            <LoadingSkeleton />
+          </View>
+        </ThemedView>
+      </SafeAreaView>
+    );
   }
 
+  const quickActions = [
+    {
+      icon: 'heart' as const,
+      label: favorites.has(currentPhoto.id) ? 'Remove from Favorites' : 'Add to Favorites',
+      onPress: handleFavorite,
+      color: '#fbbf24',
+    },
+    {
+      icon: 'eye' as const,
+      label: 'View Details',
+      onPress: () => {
+        setPhotoDetailsVisible(true);
+        setQuickActionsVisible(false);
+      },
+    },
+    {
+      icon: 'checkmark-circle' as const,
+      label: 'Keep',
+      onPress: handleSwipeLeft,
+      color: '#10b981',
+    },
+    {
+      icon: 'trash' as const,
+      label: 'Delete',
+      onPress: handleSwipeRight,
+      destructive: true,
+    },
+  ];
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <ThemedView style={styles.content}>
-        {/* Background Blurred Image for Depth */}
-        {currentPhoto && (
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            <Image
-              source={{ uri: currentPhoto.uri }}
-              style={styles.backgroundImage}
-              contentFit="cover"
-              blurRadius={50}
+    <ErrorBoundary>
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          bounces={true}
+          alwaysBounceVertical={true}
+          showsVerticalScrollIndicator={false}
+          nestedScrollEnabled={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={background} />
+          }
+        >
+          <ThemedView style={styles.content}>
+            {/* Background Blurred Image for Depth */}
+            {currentPhoto && (
+              <View style={StyleSheet.absoluteFill} pointerEvents="none">
+                <Image
+                  source={{ uri: currentPhoto.uri }}
+                  style={styles.backgroundImage}
+                  contentFit="cover"
+                  blurRadius={50}
+                />
+                <View style={[styles.backgroundOverlay, { backgroundColor: background }]} />
+              </View>
+            )}
+
+            {/* Achievement Toast */}
+            {currentAchievement && (
+              <AchievementToast
+                achievement={currentAchievement}
+                onDismiss={() => setCurrentAchievement(null)}
+              />
+            )}
+
+            {/* Progress Header */}
+            <ProgressHeader stats={state.stats} />
+
+            {/* Filter Bar */}
+            <FilterBar
+              activeFilter={activeFilter}
+              onFilterChange={setActiveFilter}
+              counts={filterCounts}
             />
-            <View style={[styles.backgroundOverlay, { backgroundColor: background }]} />
-          </View>
-        )}
 
-        {/* Achievement Toast */}
-        {currentAchievement && (
-          <AchievementToast
-            achievement={currentAchievement}
-            onDismiss={() => setCurrentAchievement(null)}
-          />
-        )}
+            {/* Swipe Card */}
+            <View style={styles.cardContainer}>
+              {/* Photo Stack (cards behind current) */}
+              {filteredPhotos && (
+                <PhotoStack 
+                  photos={filteredPhotos} 
+                  currentIndex={filteredIndex} 
+                  translateX={translateX}
+                />
+              )}
 
-        {/* Progress Header */}
-        <ProgressHeader stats={state.stats} />
-
-        {/* Filter Bar */}
-        <FilterBar
-          activeFilter={activeFilter}
-          onFilterChange={setActiveFilter}
-          counts={filterCounts}
-        />
-
-        {/* Swipe Card */}
-        <View style={styles.cardContainer}>
-          {/* Photo Stack (cards behind current) */}
-          {filteredPhotos && (
-            <PhotoStack 
-              photos={filteredPhotos} 
-              currentIndex={filteredIndex} 
-              translateX={translateX}
-            />
-          )}
-
-          {/* Current Card */}
-          {currentPhoto && (
-            <SwipeCard
-              photo={currentPhoto}
-              onSwipeLeft={handleSwipeLeft}
-              onSwipeRight={handleSwipeRight}
-              isSuggested={smartSuggestions.includes(currentPhoto.id)}
-              translateX={translateX}
-              translateY={translateY}
-              analysis={state.analyses.get(currentPhoto.id)}
-            />
-          )}
-        </View>
+              {/* Current Card */}
+              {currentPhoto && (
+                <SwipeCard
+                  photo={currentPhoto}
+                  onSwipeLeft={handleSwipeLeft}
+                  onSwipeRight={handleSwipeRight}
+                  onFavorite={handleFavorite}
+                  onLongPress={handleLongPress}
+                  onTap={handleTap}
+                  isFavorite={favorites.has(currentPhoto.id)}
+                  isSuggested={smartSuggestions.includes(currentPhoto.id)}
+                  translateX={translateX}
+                  translateY={translateY}
+                  analysis={state.analyses.get(currentPhoto.id)}
+                />
+              )}
+            </View>
 
         {/* Action Buttons with integrated Undo */}
         <ActionButtons
           onKeep={handleSwipeLeft}
           onDelete={handleSwipeRight}
-          onUndo={undoLastDecision}
+          onUndo={handleUndo}
           canUndo={state.undoHistory.length > 0}
           disabled={!currentPhoto}
         />
-      </ThemedView>
-    </SafeAreaView>
+          </ThemedView>
+        </ScrollView>
+
+        {/* Photo Details Modal */}
+        <PhotoDetailsModal
+          visible={photoDetailsVisible}
+          photo={currentPhoto}
+          analysis={state.analyses.get(currentPhoto.id)}
+          onClose={() => setPhotoDetailsVisible(false)}
+        />
+
+        {/* Quick Actions Menu */}
+        <QuickActionsMenu
+          visible={quickActionsVisible}
+          actions={quickActions}
+          onClose={() => setQuickActionsVisible(false)}
+        />
+      </SafeAreaView>
+    </ErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  scrollContent: {
     flex: 1,
   },
   content: {
@@ -322,5 +466,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 10,
     position: 'relative',
+    minHeight: 400,
   },
 });

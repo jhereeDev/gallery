@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, StyleSheet, Dimensions, Pressable } from 'react-native';
 import Animated, { 
   useSharedValue, 
   useAnimatedStyle, 
@@ -10,6 +10,7 @@ import { useThemeColor } from '@/hooks/use-theme-color';
 import { SPRING_CONFIG } from '@/utils/animations';
 import type { GalleryStats } from '@/types/gallery';
 import { Ionicons } from '@expo/vector-icons';
+import { ExportStatsCard } from './ExportStatsCard';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -23,6 +24,7 @@ export function ProgressHeader({ stats }: ProgressHeaderProps) {
   const tintColor = useThemeColor({}, 'tint');
   const surfaceColor = useThemeColor({}, 'surface');
   const textColor = useThemeColor({}, 'text');
+  const [showStats, setShowStats] = useState(false);
 
   const progress = useSharedValue(0);
 
@@ -57,12 +59,25 @@ export function ProgressHeader({ stats }: ProgressHeaderProps) {
             <ThemedText style={[styles.statNumber, { color: deleteColor }]}>{stats.toDelete}</ThemedText>
             <Ionicons name="trash" size={16} color={deleteColor} />
           </View>
+
+          <Pressable
+            onPress={() => setShowStats(!showStats)}
+            style={styles.statsButton}
+          >
+            <Ionicons name="stats-chart" size={18} color={tintColor} />
+          </Pressable>
         </View>
 
         <View style={styles.progressBarContainer}>
           <Animated.View style={[styles.progressBar, { backgroundColor: tintColor }, progressBarStyle]} />
         </View>
       </View>
+
+      {showStats && (
+        <View style={styles.statsCardContainer}>
+          <ExportStatsCard stats={stats} />
+        </View>
+      )}
     </View>
   );
 }
@@ -88,6 +103,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  statsButton: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  statsCardContainer: {
+    marginTop: 12,
   },
   statGroup: {
     flexDirection: 'row',

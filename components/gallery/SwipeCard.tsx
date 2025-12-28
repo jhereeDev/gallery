@@ -29,6 +29,10 @@ interface SwipeCardProps {
   photo: Photo;
   onSwipeLeft: () => void;
   onSwipeRight: () => void;
+  onFavorite?: () => void;
+  onLongPress?: () => void;
+  onTap?: () => void;
+  isFavorite?: boolean;
   isSuggested?: boolean;
   translateX: Animated.SharedValue<number>;
   translateY: Animated.SharedValue<number>;
@@ -38,7 +42,11 @@ interface SwipeCardProps {
 export function SwipeCard({ 
   photo, 
   onSwipeLeft, 
-  onSwipeRight, 
+  onSwipeRight,
+  onFavorite,
+  onLongPress,
+  onTap,
+  isFavorite = false,
   isSuggested = false,
   translateX,
   translateY,
@@ -52,13 +60,15 @@ export function SwipeCard({
   const rotate = useSharedValue(0);
   const opacity = useSharedValue(1);
   const scale = useSharedValue(1);
+  const favoriteOpacity = useSharedValue(0);
 
   // Reset local values when photo changes
   useEffect(() => {
     rotate.value = 0;
     scale.value = withSpring(1, SPRING_CONFIG);
     opacity.value = withTiming(1, { duration: 400 });
-  }, [photo.id]);
+    favoriteOpacity.value = isFavorite ? 1 : 0;
+  }, [photo.id, isFavorite]);
 
   // Derived values for overlays
   const deleteOverlayOpacity = useDerivedValue(() => {
@@ -73,6 +83,15 @@ export function SwipeCard({
   const keepOverlayOpacity = useDerivedValue(() => {
     return interpolate(
       translateX.value,
+      [-SWIPE_THRESHOLD, 0],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+  });
+
+  const favoriteOverlayOpacity = useDerivedValue(() => {
+    return interpolate(
+      translateY.value,
       [-SWIPE_THRESHOLD, 0],
       [1, 0],
       Extrapolation.CLAMP
@@ -99,6 +118,14 @@ export function SwipeCard({
     }, 200);
   };
 
+  const handleFavorite = () => {
+    if (onFavorite) {
+      triggerHaptic('success');
+      favoriteOpacity.value = withSpring(isFavorite ? 0 : 1, SPRING_CONFIG);
+      onFavorite();
+    }
+  };
+
   const panGesture = Gesture.Pan()
     .onBegin(() => {
       runOnJS(triggerHaptic)('light');
@@ -113,12 +140,22 @@ export function SwipeCard({
       if (Math.abs(event.translationX) >= SWIPE_THRESHOLD && Math.abs(event.translationX) < SWIPE_THRESHOLD + 5) {
         runOnJS(triggerHaptic)('medium');
       }
+      if (event.translationY < -SWIPE_THRESHOLD && event.translationY > -SWIPE_THRESHOLD - 5) {
+        runOnJS(triggerHaptic)('medium');
+      }
     })
     .onEnd(() => {
       const shouldDelete = translateX.value > SWIPE_THRESHOLD;
       const shouldKeep = translateX.value < -SWIPE_THRESHOLD;
+      const shouldFavorite = translateY.value < -SWIPE_THRESHOLD;
 
-      if (shouldDelete || shouldKeep) {
+      if (shouldFavorite && onFavorite) {
+        runOnJS(handleFavorite)();
+        translateX.value = withSpring(0, SPRING_CONFIG);
+        translateY.value = withSpring(0, SPRING_CONFIG);
+        rotate.value = withSpring(0, SPRING_CONFIG);
+        scale.value = withSpring(1, SPRING_CONFIG);
+      } else if (shouldDelete || shouldKeep) {
         runOnJS(handleSwipeComplete)(shouldDelete ? 'right' : 'left');
       } else {
         // Spring back to center
@@ -128,6 +165,29 @@ export function SwipeCard({
         scale.value = withSpring(1, SPRING_CONFIG);
       }
     });
+
+  const longPressGesture = Gesture.LongPress()
+    .minDuration(500)
+    .onStart(() => {
+      runOnJS(triggerHaptic)('medium');
+      if (onLongPress) {
+        runOnJS(onLongPress)();
+      }
+    });
+
+  const tapGesture = Gesture.Tap()
+    .numberOfTaps(2)
+    .onEnd(() => {
+      if (onTap) {
+        runOnJS(triggerHaptic)('light');
+        runOnJS(onTap)();
+      }
+    });
+
+  const composedGesture = Gesture.Simultaneous(
+    Gesture.Race(panGesture, longPressGesture),
+    tapGesture
+  );
 
   const cardAnimatedStyle = useAnimatedStyle(() => {
     const s = interpolate(
@@ -164,8 +224,19 @@ export function SwipeCard({
     transform: [{ scale: interpolate(translateX.value, [-SWIPE_THRESHOLD, 0], [1.2, 0.5], Extrapolation.CLAMP) }]
   }));
 
+  const favoriteOverlayStyle = useAnimatedStyle(() => ({
+    opacity: favoriteOverlayOpacity.value,
+    transform: [{ scale: interpolate(translateY.value, [-SWIPE_THRESHOLD, 0], [1.2, 0.5], Extrapolation.CLAMP) }]
+  }));
+
+  const favoriteBadgeStyle = useAnimatedStyle(() => ({
+    opacity: favoriteOpacity.value,
+  }));
+
+  const accentColor = useThemeColor({}, 'accent');
+
   return (
-    <GestureDetector gesture={panGesture}>
+    <GestureDetector gesture={composedGesture}>
       <Animated.View style={[styles.card, { backgroundColor: cardBg }, cardAnimatedStyle]}>
         <Image
           source={{ uri: photo.uri }}
@@ -186,6 +257,22 @@ export function SwipeCard({
             <Ionicons name="heart" size={60} color={keepColor} />
           </View>
         </Animated.View>
+
+        {/* Favorite Indicator (Swipe Up) */}
+        {onFavorite && (
+          <Animated.View pointerEvents="none" style={[styles.indicatorContainer, styles.favoriteIndicator, favoriteOverlayStyle]}>
+            <View style={[styles.iconCircle, { borderColor: accentColor }]}>
+              <Ionicons name="star" size={60} color={accentColor} />
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Favorite Badge */}
+        {isFavorite && (
+          <Animated.View style={[styles.favoriteBadge, favoriteBadgeStyle]}>
+            <Ionicons name="star" size={20} color="#fff" />
+          </Animated.View>
+        )}
 
         {/* Smart Suggestion Badge */}
         {isSuggested && (
@@ -236,6 +323,9 @@ const styles = StyleSheet.create({
   keepIndicator: {
     left: 0,
   },
+  favoriteIndicator: {
+    top: '20%',
+  },
   iconCircle: {
     width: 120,
     height: 120,
@@ -271,5 +361,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#000',
     letterSpacing: 1,
+  },
+  favoriteBadge: {
+    position: 'absolute',
+    top: 20,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fbbf24',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
 });

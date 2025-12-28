@@ -8,6 +8,7 @@ const KEYS = {
   SESSIONS: '@gallery_cleaner:sessions',
   STREAK: '@gallery_cleaner:streak',
   LAST_SESSION_DATE: '@gallery_cleaner:last_session_date',
+  FAVORITES: '@gallery_cleaner:favorites',
 };
 
 export const storage = {
@@ -154,6 +155,25 @@ export const storage = {
     } catch (error) {
       console.error('Failed to get current streak:', error);
       return 0;
+    }
+  },
+
+  // Favorites
+  async saveFavorites(favoriteIds: string[]): Promise<void> {
+    try {
+      await AsyncStorage.setItem(KEYS.FAVORITES, JSON.stringify(favoriteIds));
+    } catch (error) {
+      console.error('Failed to save favorites:', error);
+    }
+  },
+
+  async getFavorites(): Promise<string[] | null> {
+    try {
+      const data = await AsyncStorage.getItem(KEYS.FAVORITES);
+      return data ? JSON.parse(data) : null;
+    } catch (error) {
+      console.error('Failed to get favorites:', error);
+      return null;
     }
   },
 
