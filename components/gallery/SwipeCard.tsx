@@ -18,7 +18,7 @@ import { triggerHaptic } from '@/utils/haptics';
 import { SWIPE_THRESHOLD, ROTATION_FACTOR } from '@/constants/config';
 import { EXIT_SPRING_CONFIG, SPRING_CONFIG, TIMING_CONFIG } from '@/utils/animations';
 import { MetadataPanel } from '@/components/gallery/MetadataPanel';
-import type { Photo, PhotoAnalysis } from '@/types/gallery';
+import type { Photo, PhotoAnalysis, PhotoDecision } from '@/types/gallery';
 import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -37,11 +37,12 @@ interface SwipeCardProps {
   translateX: Animated.SharedValue<number>;
   translateY: Animated.SharedValue<number>;
   analysis?: PhotoAnalysis;
+  existingDecision?: PhotoDecision;
 }
 
-export function SwipeCard({ 
-  photo, 
-  onSwipeLeft, 
+export function SwipeCard({
+  photo,
+  onSwipeLeft,
   onSwipeRight,
   onFavorite,
   onLongPress,
@@ -50,7 +51,8 @@ export function SwipeCard({
   isSuggested = false,
   translateX,
   translateY,
-  analysis
+  analysis,
+  existingDecision
 }: SwipeCardProps) {
   const deleteColor = useThemeColor({}, 'deleteColor');
   const keepColor = useThemeColor({}, 'keepColor');
@@ -275,10 +277,27 @@ export function SwipeCard({
         )}
 
         {/* Smart Suggestion Badge */}
-        {isSuggested && (
+        {isSuggested && !existingDecision && (
           <View style={styles.suggestionBadge}>
             <Ionicons name="sparkles" size={14} color="#000" />
             <ThemedText style={styles.suggestionText}>SMART SUGGESTION</ThemedText>
+          </View>
+        )}
+
+        {/* Already Decided Badge */}
+        {existingDecision && (
+          <View style={[
+            styles.decisionBadge,
+            { backgroundColor: existingDecision === 'keep' ? 'rgba(16, 185, 129, 0.95)' : 'rgba(239, 68, 68, 0.95)' }
+          ]}>
+            <Ionicons
+              name={existingDecision === 'keep' ? 'checkmark-circle' : 'close-circle'}
+              size={16}
+              color="#fff"
+            />
+            <ThemedText style={styles.decisionText}>
+              {existingDecision === 'keep' ? 'ALREADY KEPT' : 'ALREADY DELETED'}
+            </ThemedText>
           </View>
         )}
 
@@ -361,6 +380,30 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#000',
     letterSpacing: 1,
+  },
+  decisionBadge: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  decisionText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 1.2,
   },
   favoriteBadge: {
     position: 'absolute',

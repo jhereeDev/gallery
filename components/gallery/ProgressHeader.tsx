@@ -16,9 +16,10 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface ProgressHeaderProps {
   stats: GalleryStats;
+  onGalleryPress?: () => void;
 }
 
-export function ProgressHeader({ stats }: ProgressHeaderProps) {
+export function ProgressHeader({ stats, onGalleryPress }: ProgressHeaderProps) {
   const deleteColor = useThemeColor({}, 'deleteColor');
   const keepColor = useThemeColor({}, 'keepColor');
   const tintColor = useThemeColor({}, 'tint');
@@ -45,7 +46,7 @@ export function ProgressHeader({ stats }: ProgressHeaderProps) {
       <View style={[styles.floatingCard, { backgroundColor: surfaceColor, shadowColor: '#000' }]}>
         <View style={styles.topRow}>
           <View style={styles.statGroup}>
-            <Ionicons name="heart" size={16} color={keepColor} />
+            <Ionicons name="heart" size={16} color={keepColor} style={{ textAlign: 'center', textAlignVertical: 'center' }} />
             <ThemedText style={[styles.statNumber, { color: keepColor }]}>{stats.toKeep}</ThemedText>
           </View>
 
@@ -57,15 +58,26 @@ export function ProgressHeader({ stats }: ProgressHeaderProps) {
 
           <View style={styles.statGroup}>
             <ThemedText style={[styles.statNumber, { color: deleteColor }]}>{stats.toDelete}</ThemedText>
-            <Ionicons name="trash" size={16} color={deleteColor} />
+            <Ionicons name="trash" size={16} color={deleteColor} style={{ textAlign: 'center', textAlignVertical: 'center' }} />
           </View>
 
-          <Pressable
-            onPress={() => setShowStats(!showStats)}
-            style={styles.statsButton}
-          >
-            <Ionicons name="stats-chart" size={18} color={tintColor} />
-          </Pressable>
+          <View style={styles.actionGroup}>
+            {onGalleryPress && (
+              <Pressable
+                onPress={onGalleryPress}
+                style={styles.actionButton}
+              >
+                <Ionicons name="grid" size={18} color={tintColor} style={{ textAlign: 'center', textAlignVertical: 'center' }} />
+              </Pressable>
+            )}
+
+            <Pressable
+              onPress={() => setShowStats(!showStats)}
+              style={styles.actionButton}
+            >
+              <Ionicons name="stats-chart" size={18} color={tintColor} style={{ textAlign: 'center', textAlignVertical: 'center' }} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.progressBarContainer}>
@@ -104,9 +116,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  statsButton: {
+  actionGroup: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  actionButton: {
     padding: 4,
-    marginLeft: 8,
   },
   statsCardContainer: {
     marginTop: 12,

@@ -44,6 +44,7 @@ export function ActionButtons({
   }));
 
   const handlePressIn = (scale: Animated.SharedValue<number>) => {
+    triggerHaptic('light');
     scale.value = withSpring(0.85, SPRING_CONFIG);
   };
 
@@ -56,18 +57,26 @@ export function ActionButtons({
       {/* Undo Button */}
       <Animated.View style={[styles.undoWrapper, undoAnimatedStyle]}>
         <Pressable
-          style={[styles.smallButton, { backgroundColor: surfaceColor }]}
+          style={[
+            styles.smallButton,
+            { backgroundColor: surfaceColor },
+            canUndo && { borderWidth: 2, borderColor: tintColor }
+          ]}
           onPressIn={() => handlePressIn(undoScale)}
           onPressOut={() => handlePressOut(undoScale)}
           onPress={() => {
             if (canUndo && onUndo) {
-              triggerHaptic('medium');
+              triggerHaptic('heavy');
               onUndo();
             }
           }}
           disabled={!canUndo || disabled}
         >
-          <Ionicons name="arrow-undo" size={24} color={canUndo ? tintColor : '#94a3b8'} />
+          <Ionicons
+            name="arrow-undo"
+            size={26}
+            color={canUndo ? tintColor : '#94a3b8'}
+          />
         </Pressable>
       </Animated.View>
 
@@ -84,13 +93,18 @@ export function ActionButtons({
             onPressOut={() => handlePressOut(keepScale)}
             onPress={() => {
               if (!disabled) {
-                triggerHaptic('medium');
+                triggerHaptic('heavy');
                 onKeep();
               }
             }}
             disabled={disabled}
           >
-            <Ionicons name="heart" size={32} color={keepColor} />
+            <View style={[styles.iconGlow, { backgroundColor: keepColor }]} />
+            <Ionicons
+              name="heart"
+              size={36}
+              color={keepColor}
+            />
           </Pressable>
         </Animated.View>
 
@@ -106,13 +120,18 @@ export function ActionButtons({
             onPressOut={() => handlePressOut(deleteScale)}
             onPress={() => {
               if (!disabled) {
-                triggerHaptic('medium');
+                triggerHaptic('heavy');
                 onDelete();
               }
             }}
             disabled={disabled}
           >
-            <Ionicons name="trash" size={32} color={deleteColor} />
+            <View style={[styles.iconGlow, { backgroundColor: deleteColor }]} />
+            <Ionicons
+              name="trash"
+              size={36}
+              color={deleteColor}
+            />
           </Pressable>
         </Animated.View>
       </View>
@@ -138,37 +157,46 @@ const styles = StyleSheet.create({
   },
   buttonWrapper: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.2,
+    shadowRadius: 18,
+    elevation: 12,
   },
   undoWrapper: {
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
   },
   button: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    borderWidth: 2,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  iconGlow: {
+    position: 'absolute',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    opacity: 0.15,
   },
   smallButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.4,
   },
   spacer: {
-    width: 48, // To balance the undo button on the left
+    width: 54, // To balance the undo button on the left
   }
 });

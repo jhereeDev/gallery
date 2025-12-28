@@ -13,6 +13,8 @@ import { PhotoStack } from '@/components/gallery/PhotoStack';
 import { AchievementToast } from '@/components/gallery/AchievementToast';
 import { FilterBar } from '@/components/gallery/FilterBar';
 import { EmptyState } from '@/components/gallery/EmptyStates';
+import { Stack, useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { PhotoDetailsModal } from '@/components/gallery/PhotoDetailsModal';
 import { QuickActionsMenu } from '@/components/gallery/QuickActionsMenu';
 import { LoadingSkeleton } from '@/components/gallery/LoadingSkeleton';
@@ -26,6 +28,7 @@ import Animated, { useSharedValue } from 'react-native-reanimated';
 import { SPRING_CONFIG } from '@/utils/animations';
 
 export default function SwiperScreen() {
+  const router = useRouter();
   const { state, dispatch, loadPhotos, loadMorePhotos, markPhoto, undoLastDecision, startSession, endSession, checkAndUpdateAchievements, analyzePhotos } = useGallery();
   const { status: permissionStatus, requestPermissions } = usePermissions();
   const [currentAchievement, setCurrentAchievement] = useState<Achievement | null>(null);
@@ -125,13 +128,15 @@ export default function SwiperScreen() {
     return getFilterCounts(state.photos, state.analyses, smartSuggestions);
   }, [state.photos, state.analyses, smartSuggestions]);
 
-  // Apply active filter
+  // Apply active filter and exclude already-decided photos
   const filteredPhotos = useMemo(() => {
     if (!state.photos || state.photos.length === 0) {
       return [];
     }
-    return applyFilter(state.photos, activeFilter, state.analyses, smartSuggestions);
-  }, [state.photos, activeFilter, state.analyses, smartSuggestions]);
+    const filtered = applyFilter(state.photos, activeFilter, state.analyses, smartSuggestions);
+    // Exclude photos that already have a decision (keep or delete)
+    return filtered.filter(photo => !state.decisions.has(photo.id));
+  }, [state.photos, activeFilter, state.analyses, smartSuggestions, state.decisions]);
 
   // Reset filtered index when filter changes
   useEffect(() => {
@@ -374,7 +379,10 @@ export default function SwiperScreen() {
             )}
 
             {/* Progress Header */}
-            <ProgressHeader stats={state.stats} />
+            <ProgressHeader 
+              stats={state.stats} 
+              onGalleryPress={() => router.push('/gallery')}
+            />
 
             {/* Filter Bar */}
             <FilterBar
@@ -408,6 +416,7 @@ export default function SwiperScreen() {
                   translateX={translateX}
                   translateY={translateY}
                   analysis={state.analyses.get(currentPhoto.id)}
+                  existingDecision={state.decisions.get(currentPhoto.id)}
                 />
               )}
             </View>

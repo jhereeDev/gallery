@@ -65,7 +65,12 @@ export function QuickActionsMenu({ visible, actions, onClose }: QuickActionsMenu
               }}
             >
               <View style={[styles.iconContainer, { backgroundColor: `${color}20` }]}>
-                <Ionicons name={action.icon} size={24} color={color} />
+                <Ionicons 
+                  name={action.icon} 
+                  size={24} 
+                  color={color} 
+                  style={{ textAlign: 'center', textAlignVertical: 'center' }} 
+                />
               </View>
               <ThemedText style={styles.actionLabel}>{action.label}</ThemedText>
             </Pressable>
